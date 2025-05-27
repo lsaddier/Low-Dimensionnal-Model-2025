@@ -11,7 +11,7 @@ Burgard, C., Jourdain, N. C., Reese, R., Jenkins, A., and Mathiot, P.: An assess
 ### Datasets from Nakata et al, 2021
 Nakata, K., Ohshima, K. I., & Nihashi, S. (2021). Mapping of active frazil for Antarctic coastal polynyas, with an estimation of sea‐ice production. Geophysical Research Letters, 48(6), e2020GL091353.
 
-- ice_prod_5km_Nakata.nc
+- ice_prod_5km_Nakata.nc (too big to be on GitHub)
 - ice_prod_5km_Nakata_mean.nc
 
 These datasets where obtained interpolating the original datasets on stereographic grids with 5km resolution

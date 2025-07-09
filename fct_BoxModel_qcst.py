@@ -1,6 +1,7 @@
-#################################################################################################
-#This is the solver for the buyoancy driven q and constant gamma_T^\star cavity parameterization#
-#################################################################################################
+#################################################################################
+#This is the solver for the constant q and gamma_T^\star cavity parameterization#
+#################################################################################
+
 
 import numpy as np
 
@@ -33,19 +34,34 @@ lambd = L/c_star # 84 K
 rho_i = 910 # kg/m^3   (PICO)
 nu = rho_i/rho_star #0.88
 
+#PICO parameters
+# Reese 2018
+gammaT = 2e-5 #m/s
 
-# PICO solver
-def PICO(Td,Sd, nbox, C, gammaT, Ac, frac, depth):
+#Vertical mixing
+# ~Olbers & Hellmer 2010
+kappa_diff = 1e-7  # m/s
+kappa_conv = 1e-3 # m/s
+
+#Polynia
+g = 20
+
+#AABW
+C2 = 4e6 #m^6/s/kg
+
+#PICO solver
+def PICO_qcst(Td,Sd,nbox,q,gammaT,Ac,frac,depth):
+
     g1 = Ac*frac*gammaT # list of g1
     g2 = g1/nu/lambd
     s = Sd/nu/lambd
+
     # management of the 1st box
     T_st_0 = la*Sd+lb-lc*depth[0]-Td
-    x0 = -g1[0]/(2*C*rho_star*(beta*s-alpha))+np.sqrt((g1[0]/(2*C*rho_star*(beta*s-alpha)))**2-g1[0]*T_st_0/(C*rho_star*(beta*s-alpha)))
+    x0 = -g1[0]*T_st_0/(q+g1[0]-g2[0]*la*Sd)
     y0 = Sd*x0/nu/lambd
     T0 = Td-x0
     S0 = Sd-y0
-    q = C*rho_star*(beta*s-alpha)*x0
 
     # management of the other boxes
     T = np.zeros(nbox)
@@ -61,8 +77,8 @@ def PICO(Td,Sd, nbox, C, gammaT, Ac, frac, depth):
         T[k] = T[k-1]-x
         S[k] = S[k-1]-y
         m[k] = -gammaT/nu/lambd*(la*S[k]+lb-lc*depth[k]-T[k])*3600*24*30 #m/30d
- 
-    return T,S,m,q
+    
+    return T,S,m
 
 
 # compute AABW flux [m^3/s]
@@ -77,7 +93,7 @@ def compute_Sigma(X):
 def compute_m_avg(m,frac,nbox):
     return np.average(m, weights=frac[:nbox])
 
-def BoxModel(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C2, T_surf, S_surf, AABW):
+def BoxModel_qcst(X, nbox, q, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C2, T_surf, S_surf, AABW):
     
     #compute k 
     k = kappa/gammaT
@@ -89,57 +105,7 @@ def BoxModel(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C
     Tp, Td, Sp, Sd = X
 
     # Cavity dynamics with PICO 
-    Tc,Sc,m,q = PICO(Td,Sd, nbox, C, gammaT, Ac, frac, depth)
-
-    chi = q/Ac/gammaT
-
-    # Dense Shelf Water flux
-    if AABW:
-        if k>2: # Here we consider we are in the convective mode so we create AABW
-            DSW = compute_DSW(X, C2, T0, S0)/Ac/gammaT
-        else:
-            DSW = 0
-        
-    # create an empty vector that will contains the dynamical system
-    vect_out = np.zeros(len(X))
-
-    if AABW:
-        # polynya box equations
-        vect_out[0] = chi*(Tc[-1]-Tp)-phi*k*(Tp-Td)+phi*g*(liquidus(Sp,0)-Tp) +DSW*(T_surf-Tp)
-        vect_out[2] = chi*(Sc[-1]-Sp)-phi*k*(Sp-Sd)+phi*rho_i/rho_star*Sp/gammaT*Omega +DSW*(S_surf-Sp)
-    
-        # deep box equations
-        vect_out[1] = chi*(T0-Td)+phi*k*(Tp-Td) -DSW*(Td-Tp)
-        vect_out[3] = chi*(S0-Sd)+phi*k*(Sp-Sd) -DSW*(Sd-Sp)
-
-    else: #without AABW formation
-        # polynya box equations
-        vect_out[0] = chi*(Tc[-1]-Tp)-phi*k*(Tp-Td)+phi*g*(liquidus(Sp,0)-Tp)
-        vect_out[2] = chi*(Sc[-1]-Sp)-phi*k*(Sp-Sd)+phi*rho_i/rho_star*Sp/gammaT*Omega
-    
-        # deep box equations
-        vect_out[1] = chi*(T0-Td)+phi*k*(Tp-Td)
-        vect_out[3] = chi*(S0-Sd)+phi*k*(Sp-Sd)
-
-    return vect_out
-
-
-
-# Continuous parameterization of the vertical mixing
-def BoxModel_continuous_kappa(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa_d, kappa_c, Lamb, g, frac, depth, C2, T_surf, S_surf, AABW):
-
-    phi = Ap/Ac
-    
-    #compute k
-    Sigma = compute_Sigma(X)
-    kappa = (kappa_c-kappa_d)/2*np.tanh(Sigma/Lamb)+(kappa_c+kappa_d)/2
-    k = kappa/gammaT
-
-    #define variables
-    Tp, Td, Sp, Sd = X
-
-    # Cavity dynamics with PICO 
-    Tc,Sc,m,q = PICO(Td,Sd, nbox, C, gammaT, Ac, frac, depth)
+    Tc,Sc,m = PICO_qcst(Td,Sd, nbox, q, gammaT, Ac, frac, depth)
 
     chi = q/Ac/gammaT
 

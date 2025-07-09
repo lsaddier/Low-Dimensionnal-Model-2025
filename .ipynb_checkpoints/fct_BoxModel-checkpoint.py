@@ -1,3 +1,7 @@
+#################################################################################################
+#This is the solver for the buyoancy driven q and constant gamma_T^\star cavity parameterization#
+#################################################################################################
+
 import numpy as np
 
 # Define reference properties and parameters 

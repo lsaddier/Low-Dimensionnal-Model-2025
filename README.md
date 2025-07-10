@@ -1,10 +1,14 @@
-### Code supplement to accompany the manuscript "Irreversible Transitions of the Ocean Circulation in Antarctic Ice-Shelf Cavities" submitted to Geophysical Research Letters
+### Code Supplement for the Manuscript 
 
-Usage of this code should reference the accompanying manuscript.
+**"Irreversible Transitions of the Ocean Circulation in Antarctic Ice-Shelf Cavities"**
 
-### How to use
+Submitted to *Geophysical Research Letters*=.
 
-Open a terminal and type the following commands:
+This repository contains the code associated with the above manuscript. If you use or refer to this code, please cite the accompanying publication.
+
+### Getting Started
+
+To set up the environment and run the code, execute the following commands in a terminal:
 
 ```
 git clone https://github.com/lsaddier/Low-Dimensionnal-Model-2025.git
@@ -13,6 +17,10 @@ conda env create -f environment.yml
 conda activate Low-Dimensionnal-Model
 jupyter-notebook
 ```
+
+### Data Availability
+
+Please note that some datasets required to reproduce `Figures/Figure1` and `model_input_dataset.nc` are not included in the `Datasets` folder, due to file size limitations on GitHub. The complete dataset is available on Zenodo: .
 
 ### Contact
 

@@ -25,4 +25,5 @@ Please note that some datasets required to reproduce `Figures/Figure1` and `mode
 ### Contact
 
 Louis Saddier. Laboratoire de Physique, ENS de Lyon, France.
+
 louis.saddier@ens-lyon.fr

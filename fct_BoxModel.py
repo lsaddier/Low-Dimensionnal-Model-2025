@@ -67,17 +67,17 @@ def PICO(Td,Sd, nbox, C, gammaT, Ac, frac, depth):
 
 # compute AABW flux [m^3/s]
 def compute_DSW(X, C2, T0, S0):
-    return np.max(np.array([0,C2*(EOS(X[1],X[3])-EOS(T0,S0))]))
+    return np.max(np.array([0,C2*(EOS(X[1],X[3])-EOS(T0,S0))])) #Ensure non-negative flux
 
 # compute water column stability [kg/m^3]
 def compute_Sigma(X):
-    return EOS(X[0],X[2])-EOS(X[1],X[3])
+    return EOS(X[0],X[2])-EOS(X[1],X[3]) #rho_p - rho_d
 
 # Compute melt rate averaged over all the cavity boxes [m/30d]
 def compute_m_avg(m,frac,nbox):
     return np.average(m, weights=frac[:nbox])
 
-def BoxModel(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C2, T_surf, S_surf, AABW):
+def BoxModel(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C2, T_surf, S_surf, mode):
     
     #compute k 
     k = kappa/gammaT
@@ -93,26 +93,27 @@ def BoxModel(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C
 
     chi = q/Ac/gammaT
 
-    # Dense Shelf Water flux
-    if AABW:
-        if k>2: # Here we consider we are in the convective mode so we create AABW
-            DSW = compute_DSW(X, C2, T0, S0)/Ac/gammaT
-        else:
-            DSW = 0
-        
     # create an empty vector that will contains the dynamical system
     vect_out = np.zeros(len(X))
 
-    if AABW:
+    # Convective mode
+    if mode == 'conv':
+        DSW = compute_DSW(X, C2, T0, S0)/Ac/gammaT
+
         # polynya box equations
-        vect_out[0] = chi*(Tc[-1]-Tp)-phi*k*(Tp-Td)+phi*g*(liquidus(Sp,0)-Tp) +DSW*(T_surf-Tp)
-        vect_out[2] = chi*(Sc[-1]-Sp)-phi*k*(Sp-Sd)+phi*rho_i/rho_star*Sp/gammaT*Omega +DSW*(S_surf-Sp)
+        vect_out[0] = chi*(Tc[-1]-Tp) - phi*k*(Tp-Td) + phi*g*(liquidus(Sp,0)-Tp) + DSW*(T_surf-Tp)
+        vect_out[2] = chi*(Sc[-1]-Sp) - phi*k*(Sp-Sd) + phi*rho_i/rho_star*Sp/gammaT*Omega + DSW*(S_surf-Sp)
     
         # deep box equations
-        vect_out[1] = chi*(T0-Td)+phi*k*(Tp-Td) -DSW*(Td-Tp)
-        vect_out[3] = chi*(S0-Sd)+phi*k*(Sp-Sd) -DSW*(Sd-Sp)
+        vect_out[1] = 0#chi*(Tp-Td)+phi*k*(Tp-Td) - DSW*(Td-Tp)
+        vect_out[3] = 0#chi*(Sp-Sd)+phi*k*(Sp-Sd) - DSW*(Sd-Sp)
 
-    else: #without AABW formation
+
+
+
+    #Diffusive mode
+    elif mode == "diff":
+        
         # polynya box equations
         vect_out[0] = chi*(Tc[-1]-Tp)-phi*k*(Tp-Td)+phi*g*(liquidus(Sp,0)-Tp)
         vect_out[2] = chi*(Sc[-1]-Sp)-phi*k*(Sp-Sd)+phi*rho_i/rho_star*Sp/gammaT*Omega
@@ -126,7 +127,7 @@ def BoxModel(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C
 
 
 # Continuous parameterization of the vertical mixing
-def BoxModel_continuous_kappa(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa_d, kappa_c, Lamb, g, frac, depth, C2, T_surf, S_surf, AABW):
+def BoxModel_continuous_kappa(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa_d, kappa_c, Lamb, g, frac, depth, C2, T_surf, S_surf, mode):
 
     phi = Ap/Ac
     

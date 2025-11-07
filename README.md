@@ -2,7 +2,7 @@
 
 **"Irreversible Transitions of the Ocean Circulation in Antarctic Ice-Shelf Cavities"**
 
-Submitted to *Geophysical Research Letters*. Code supplement associated to the revised version (09/10/2025).
+Submitted to *Geophysical Research Letters*. Code supplement associated to the revised version (??/??/2025).
 
 This repository contains the code associated with the above manuscript. If you use or refer to this code, please cite the accompanying publication.
 

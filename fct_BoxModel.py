@@ -66,19 +66,22 @@ def PICO(Td,Sd, nbox, C, gammaT, Ac, frac, depth):
 
 
 # compute AABW flux [m^3/s]
-def compute_DSW(X, C2, T0, S0):
-    return np.max(np.array([0,C2*(EOS(X[1],X[3])-EOS(T0,S0))])) #Ensure non-negative flux
+def compute_DSW(T, S, C2, T0, S0):
+    return np.max(np.array([0,C2*(EOS(T,S)-EOS(T0,S0))])) #Ensure non-negative flux
 
-# compute water column stability [kg/m^3]
+# compute water column stability [kg/m^3] # work only in diffusive mode
 def compute_Sigma(X):
     return EOS(X[0],X[2])-EOS(X[1],X[3]) #rho_p - rho_d
+
+def compute_rhod_rho0(T,S,T0,S0):
+    return EOS(T,S)-EOS(T0,S0)
 
 # Compute melt rate averaged over all the cavity boxes [m/30d]
 def compute_m_avg(m,frac,nbox):
     return np.average(m, weights=frac[:nbox])
 
-def BoxModel(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C2, T_surf, S_surf, mode):
-    
+def BoxModel_diff(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth,  C2, T_surf, S_surf):
+
     #compute k 
     k = kappa/gammaT
 
@@ -96,41 +99,97 @@ def BoxModel(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C
     # create an empty vector that will contains the dynamical system
     vect_out = np.zeros(len(X))
 
-    # Convective mode
-    if mode == 'conv':
-        DSW = compute_DSW(X, C2, T0, S0)/Ac/gammaT
-
-        # polynya box equations
-        vect_out[0] = chi*(Tc[-1]-Tp) - phi*k*(Tp-Td) + phi*g*(liquidus(Sp,0)-Tp) + DSW*(T_surf-Tp)
-        vect_out[2] = chi*(Sc[-1]-Sp) - phi*k*(Sp-Sd) + phi*rho_i/rho_star*Sp/gammaT*Omega + DSW*(S_surf-Sp)
+    # polynya box equations
+    vect_out[0] = chi*(Tc[-1]-Tp)-phi*k*(Tp-Td)+phi*g*(liquidus(Sp,0)-Tp)
+    vect_out[2] = chi*(Sc[-1]-Sp)-phi*k*(Sp-Sd)+phi*rho_i/rho_star*Sp/gammaT*Omega
     
-        # deep box equations
-        vect_out[1] = 0#chi*(Tp-Td)+phi*k*(Tp-Td) - DSW*(Td-Tp)
-        vect_out[3] = 0#chi*(Sp-Sd)+phi*k*(Sp-Sd) - DSW*(Sd-Sp)
+    # deep box equations
+    vect_out[1] = chi*(T0-Td)+phi*k*(Tp-Td)
+    vect_out[3] = chi*(S0-Sd)+phi*k*(Sp-Sd)
+
+    return vect_out
 
 
+def BoxModel_conv(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C2, T_surf, S_surf):
+    
+    #compute k. At steady state kappa does not play any role 
+    #k = kappa/gammaT
+
+    #compute phi
+    phi = Ap/Ac
+
+    #define variables. Here no Tp because Tp=Td at steady state
+    Td, Sd = X
+
+    # Cavity dynamics with PICO 
+    Tc,Sc,m,q = PICO(Td,Sd, nbox, C, gammaT, Ac, frac, depth)
+
+    chi = q/Ac/gammaT
+
+    # create an empty vector that will contains the dynamical system
+    vect_out = np.zeros(len(X))
+
+    DSW = compute_DSW(Td, Sd, C2, T0, S0)/Ac/gammaT
+
+    # Mixed box equations
+    vect_out[0] = chi*(Tc[-1]-Td) + phi*g*(liquidus(Sd,0)-Td) + DSW*(T_surf-Td) + 0.01*(T0-Td)
+    vect_out[1] = chi*(Sc[-1]-Sd) + phi*rho_i/rho_star*Sd/gammaT*Omega + DSW*(S_surf-Sd) + 0.01*(S0-Sd)
+
+    return vect_out
 
 
-    #Diffusive mode
-    elif mode == "diff":
+def BoxModel(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C2, T_surf, S_surf, r, mode):
+    
+    #compute k. 
+    k = kappa/gammaT
+
+    #compute phi
+    phi = Ap/Ac
+
+    #define variables. Here no Tp because Tp=Td at steady state
+    Tp, Td, Sp, Sd = X
+
+    # Cavity dynamics with PICO 
+    Tc,Sc,m,q = PICO(Td,Sd, nbox, C, gammaT, Ac, frac, depth)
+
+
+    chi = q/Ac/gammaT
+
+    # create an empty vector that will contains the dynamical system
+    vect_out = np.zeros(len(X))
+
+    if mode == 'diff':
         
         # polynya box equations
-        vect_out[0] = chi*(Tc[-1]-Tp)-phi*k*(Tp-Td)+phi*g*(liquidus(Sp,0)-Tp)
-        vect_out[2] = chi*(Sc[-1]-Sp)-phi*k*(Sp-Sd)+phi*rho_i/rho_star*Sp/gammaT*Omega
-    
+        vect_out[0] = chi*(Tc[-1]-Tp) - phi*k*(Tp-Td) + phi*g*(liquidus(Sp,0)-Tp)
+        vect_out[2] = chi*(Sc[-1]-Sp) - phi*k*(Sp-Sd) + phi*rho_i/rho_star*Sp/gammaT*Omega
+        
         # deep box equations
-        vect_out[1] = chi*(T0-Td)+phi*k*(Tp-Td)
-        vect_out[3] = chi*(S0-Sd)+phi*k*(Sp-Sd)
+        vect_out[1] = chi*(T0-Td) + phi*k*(Tp-Td)  + r*(T0-Td)
+        vect_out[3] = chi*(S0-Sd) + phi*k*(Sp-Sd) + r*(S0-Sd)
 
+
+    elif mode == 'conv':
+        DSW = compute_DSW(Td, Sd, C2, T0, S0)/Ac/gammaT
+
+        # Polynya box equations
+        vect_out[0] = chi*(Tc[-1]-Tp) + phi*g*(liquidus(Sp,0)-Tp) + DSW*(T_surf-Tp) + phi*k*(Td-Tp)
+        vect_out[2] = chi*(Sc[-1]-Sp) + phi*rho_i/rho_star*Sp/gammaT*Omega + DSW*(S_surf-Sp) + phi*k*(Sd-Sp)
+
+        # Deep box equations
+        vect_out[1] = chi*(Tp-Td) + DSW*(Tp-Td) + phi*k*(Tp-Td) + r*(T0-Td)
+        vect_out[3] = chi*(Sp-Sd) + DSW*(Sp-Sd) + phi*k*(Sp-Sd) + r*(S0-Sd)
+
+    
     return vect_out
 
 
 
 # Continuous parameterization of the vertical mixing
-def BoxModel_continuous_kappa(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa_d, kappa_c, Lamb, g, frac, depth, C2, T_surf, S_surf, mode):
+def BoxModel_continuous_kappa(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa_d, kappa_c, Lamb, g, frac, depth, C2, T_surf, S_surf, r, mode):
 
     phi = Ap/Ac
-    
+
     #compute k
     Sigma = compute_Sigma(X)
     kappa = (kappa_c-kappa_d)/2*np.tanh(Sigma/Lamb)+(kappa_c+kappa_d)/2
@@ -139,37 +198,39 @@ def BoxModel_continuous_kappa(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa_d
     #define variables
     Tp, Td, Sp, Sd = X
 
+    Sigma_d_0 = compute_rhod_rho0(Td,Sd,T0,S0)
+
     # Cavity dynamics with PICO 
     Tc,Sc,m,q = PICO(Td,Sd, nbox, C, gammaT, Ac, frac, depth)
 
     chi = q/Ac/gammaT
-
-    # Dense Shelf Water flux
-    if AABW:
-        if k>2: # Here we consider we are in the convective mode so we create AABW
-            DSW = compute_DSW(X, C2, T0, S0)/Ac/gammaT
-        else:
-            DSW = 0
-        
+    
     # create an empty vector that will contains the dynamical system
     vect_out = np.zeros(len(X))
 
-    if AABW:
-        # polynya box equations
-        vect_out[0] = chi*(Tc[-1]-Tp)-phi*k*(Tp-Td)+phi*g*(liquidus(Sp,0)-Tp) +DSW*(T_surf-Tp)
-        vect_out[2] = chi*(Sc[-1]-Sp)-phi*k*(Sp-Sd)+phi*rho_i/rho_star*Sp/gammaT*Omega +DSW*(S_surf-Sp)
-    
-        # deep box equations
-        vect_out[1] = chi*(T0-Td)+phi*k*(Tp-Td) -DSW*(Td-Tp)
-        vect_out[3] = chi*(S0-Sd)+phi*k*(Sp-Sd) -DSW*(Sd-Sp)
+    if mode == 'CDW':
 
-    else: #without AABW formation
         # polynya box equations
-        vect_out[0] = chi*(Tc[-1]-Tp)-phi*k*(Tp-Td)+phi*g*(liquidus(Sp,0)-Tp)
-        vect_out[2] = chi*(Sc[-1]-Sp)-phi*k*(Sp-Sd)+phi*rho_i/rho_star*Sp/gammaT*Omega
-    
+        vect_out[0] = chi*(Tc[-1]-Tp) - phi*k*(Tp-Td) + phi*g*(liquidus(Sp,0)-Tp)
+        vect_out[2] = chi*(Sc[-1]-Sp) - phi*k*(Sp-Sd) + phi*rho_i/rho_star*Sp/gammaT*Omega
+        
         # deep box equations
-        vect_out[1] = chi*(T0-Td)+phi*k*(Tp-Td)
-        vect_out[3] = chi*(S0-Sd)+phi*k*(Sp-Sd)
+        vect_out[1] = chi*(T0-Td) + phi*k*(Tp-Td)  + r*(T0-Td)
+        vect_out[3] = chi*(S0-Sd) + phi*k*(Sp-Sd) + r*(S0-Sd)
+    
+    if mode == 'DSW':
+
+        DSW = compute_DSW(Td, Sd, C2, T0, S0)/Ac/gammaT
+
+        # Polynya box equations
+        vect_out[0] = chi*(Tc[-1]-Tp) + phi*g*(liquidus(Sp,0)-Tp) + DSW*(T_surf-Tp) + phi*k*(Td-Tp)
+        vect_out[2] = chi*(Sc[-1]-Sp) + phi*rho_i/rho_star*Sp/gammaT*Omega + DSW*(S_surf-Sp) + phi*k*(Sd-Sp)
+
+        # Deep box equations
+        vect_out[1] = chi*(Tp-Td) + DSW*(Tp-Td) + phi*k*(Tp-Td) + r*(T0-Td)
+        vect_out[3] = chi*(Sp-Sd) + DSW*(Sp-Sd) + phi*k*(Sp-Sd) + r*(S0-Sd)
+
+
+
 
     return vect_out

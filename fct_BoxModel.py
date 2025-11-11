@@ -67,7 +67,9 @@ def PICO(Td,Sd, nbox, C, gammaT, Ac, frac, depth):
 
 # compute AABW flux [m^3/s]
 def compute_DSW(T, S, C2, T0, S0):
-    return np.max(np.array([0,C2*(EOS(T,S)-EOS(T0,S0))])) #Ensure non-negative flux
+    return C2*(EOS(T,S)-EOS(T0,S0)) #Ensure non-negative flux
+    #return np.max(np.array([0,C2*(EOS(T,S)-EOS(T0,S0))])) #Ensure non-negative flux
+
 
 # compute water column stability [kg/m^3] # work only in diffusive mode
 def compute_Sigma(X):

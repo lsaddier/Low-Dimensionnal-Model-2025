@@ -109,8 +109,8 @@ def BoxModel(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, r
     vect_out[2] = chi*(Sc[-1]-Sp) + phi*rho_i/rho_star*Sp/gammaT*Omega + phi*k*(Sd-Sp)
 
     # Deep box equations
-    vect_out[1] = r*chi*(T0-Td) + (phi*k+chi*(1-r))*(Tp-Td)
-    vect_out[3] = r*chi*(S0-Sd) + phi*k*(Sp-Sd)
+    vect_out[1] = (1-r)*chi*(T0-Td) + (phi*k+chi*r)*(Tp-Td)
+    vect_out[3] = (1-r)*chi*(S0-Sd) + (phi*k+chi*r)*(Sp-Sd)
 
     
     return vect_out
@@ -118,7 +118,7 @@ def BoxModel(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, r
 
 
 # Continuous parameterization of the vertical mixing
-def BoxModel_continuous_kappa(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa_d, kappa_c, Lamb, g, frac, depth, C2, T_surf, S_surf, r, mode):
+def BoxModel_continuous_kappa(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa_d, kappa_c, Lamb, g, frac, depth, r_conv):
 
     phi = Ap/Ac
 
@@ -127,10 +127,10 @@ def BoxModel_continuous_kappa(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa_d
     kappa = (kappa_c-kappa_d)/2*np.tanh(Sigma/Lamb)+(kappa_c+kappa_d)/2
     k = kappa/gammaT
 
+    r = r_conv*(1+np.tanh(Sigma/Lamb))/2
+
     #define variables
     Tp, Td, Sp, Sd = X
-
-    Sigma_d_0 = compute_rhod_rho0(Td,Sd,T0,S0)
 
     # Cavity dynamics with PICO 
     Tc,Sc,m,q = PICO(Td,Sd, nbox, C, gammaT, Ac, frac, depth)
@@ -140,29 +140,12 @@ def BoxModel_continuous_kappa(X, nbox, C, gammaT, Ac, Omega, T0, S0, Ap, kappa_d
     # create an empty vector that will contains the dynamical system
     vect_out = np.zeros(len(X))
 
-    if mode == 'CDW':
+    # Polynya box equations
+    vect_out[0] = chi*(Tc[-1]-Tp) + phi*g*(liquidus(Sp,0)-Tp) + phi*k*(Td-Tp)
+    vect_out[2] = chi*(Sc[-1]-Sp) + phi*rho_i/rho_star*Sp/gammaT*Omega + phi*k*(Sd-Sp)
 
-        # polynya box equations
-        vect_out[0] = chi*(Tc[-1]-Tp) - phi*k*(Tp-Td) + phi*g*(liquidus(Sp,0)-Tp)
-        vect_out[2] = chi*(Sc[-1]-Sp) - phi*k*(Sp-Sd) + phi*rho_i/rho_star*Sp/gammaT*Omega
-        
-        # deep box equations
-        vect_out[1] = chi*(T0-Td) + phi*k*(Tp-Td)  + r*(T0-Td)
-        vect_out[3] = chi*(S0-Sd) + phi*k*(Sp-Sd) + r*(S0-Sd)
-    
-    if mode == 'DSW':
-
-        DSW = compute_DSW(Td, Sd, C2, T0, S0)/Ac/gammaT
-
-        # Polynya box equations
-        vect_out[0] = chi*(Tc[-1]-Tp) + phi*g*(liquidus(Sp,0)-Tp) + DSW*(T_surf-Tp) + phi*k*(Td-Tp)
-        vect_out[2] = chi*(Sc[-1]-Sp) + phi*rho_i/rho_star*Sp/gammaT*Omega + DSW*(S_surf-Sp) + phi*k*(Sd-Sp)
-
-        # Deep box equations
-        vect_out[1] = chi*(Tp-Td) + DSW*(Tp-Td) + phi*k*(Tp-Td) + r*(T0-Td)
-        vect_out[3] = chi*(Sp-Sd) + DSW*(Sp-Sd) + phi*k*(Sp-Sd) + r*(S0-Sd)
-
-
-
+    # Deep box equations
+    vect_out[1] = (1-r)*chi*(T0-Td) + (phi*k+chi*r)*(Tp-Td)
+    vect_out[3] = (1-r)*chi*(S0-Sd) + (phi*k+chi*r)*(Sp-Sd)
 
     return vect_out

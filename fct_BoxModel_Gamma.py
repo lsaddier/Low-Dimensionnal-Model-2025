@@ -33,26 +33,13 @@ lambd = L/c_star # 84 K
 rho_i = 910 # kg/m^3   (PICO)
 nu = rho_i/rho_star #0.88
 
-#PICO parameters
-# Reese 2018
-C = 1e6 #m^6/s/kg
 
-gammaT_ref = 2e-5
-
-#Vertical mixing
-# ~Olbers & Hellmer 2010
-kappa_diff = 1e-7  # m/s
-kappa_conv = 1e-3 # m/s
-
-#Polynia
-g = 20
-
-#AABW
-C2 = 4e6 #m^6/s/kg
+# reference turbulent heat transfer
+gammaT_ref = 2e-5 # m/s
 
 
 # PICO solver
-def PICO_velo(Td,Sd,nbox,C,Gamma,Ac,frac,depth):
+def PICO(Td,Sd,nbox,C,Gamma,Ac,frac,depth):
 
     g1 = Ac*frac*Gamma # list of g1
     g2 = g1/nu/lambd
@@ -60,18 +47,18 @@ def PICO_velo(Td,Sd,nbox,C,Gamma,Ac,frac,depth):
 
     # management of the 1st box
     T_st_0 = la*Sd+lb-lc*depth[0]-Td
-    x0 = -g1[0]*T_st_0/(1+g1[0]-g2[0]*la*Sd)
-    y0 = Sd*x0/nu/lambd
-    T0 = Td-x0
-    S0 = Sd-y0
-    q = C*rho_star*(beta*s-alpha)*x0
+    x_CDW = -g1[0]*T_st_0/(1+g1[0]-g2[0]*la*Sd)
+    y_CDW = Sd*x_CDW/nu/lambd
+    T_CDW = Td-x_CDW
+    S_CDW = Sd-y_CDW
+    q = C*rho_star*(beta*s-alpha)*x_CDW
 
     # management of the other boxes
     T = np.zeros(nbox)
     S = np.zeros(nbox)
     m = np.zeros(nbox)
-    T[0] = T0
-    S[0] = S0
+    T[0] = T_CDW
+    S[0] = S_CDW
     m[0] = -Gamma*q/nu/lambd*(la*S[0]+lb-lc*depth[0]-T[0])*3600*24*30 #m/30d
     for k in range(1,nbox):
         T_st = la*S[k-1]+lb-lc*depth[k]-T[k-1]
@@ -88,8 +75,8 @@ def PICO_velo(Td,Sd,nbox,C,Gamma,Ac,frac,depth):
 
 
 # compute AABW flux [m^3/s]
-def compute_DSW(X, C2, T0, S0):
-    return np.max(np.array([0,C2*(EOS(X[1],X[3])-EOS(T0,S0))]))
+def compute_DSW(X, C_DSW, T_CDW, S_CDW):
+    return np.max(np.array([0,C_DSW*(EOS(X[1],X[3])-EOS(T_CDW,S_CDW))]))
 
 # compute water column stability [kg/m^3]
 def compute_Sigma(X):
@@ -99,7 +86,7 @@ def compute_Sigma(X):
 def compute_m_avg(m,frac,nbox):
     return np.average(m, weights=frac[:nbox])
 
-def BoxModel_velo(X, nbox, C, Gamma, Ac, Omega, T0, S0, Ap, kappa, g, frac, depth, C2, T_surf, S_surf, AABW):
+def BoxModel(X, nbox, C, Gamma, Ac, xi, T_CDW, S_CDW, Ap, kappa, g, frac, depth, r, DSW_enabled=False, C_DSW=None, T_surf=None, S_surf=None):
     
     #compute k 
     k = kappa/gammaT_ref
@@ -111,21 +98,30 @@ def BoxModel_velo(X, nbox, C, Gamma, Ac, Omega, T0, S0, Ap, kappa, g, frac, dept
     Tp, Td, Sp, Sd = X
 
     # Cavity dynamics with PICO 
-    Tc,Sc,m,q = PICO_velo(Td,Sd, nbox, C, Gamma, Ac, frac, depth)
+    Tc,Sc,m,q = PICO(Td,Sd, nbox, C, Gamma, Ac, frac, depth)
 
     chi = q/Ac/gammaT_ref
-
-    s = Ac*Gamma
 
     # create an empty vector that will contains the dynamical system
     vect_out = np.zeros(len(X))
         
-    # polynya box equations
-    vect_out[0] = chi*(Tc[-1]-Tp)-phi*k*(Tp-Td)+phi*g*(liquidus(Sp,0)-Tp)
-    vect_out[2] = chi*(Sc[-1]-Sp)-phi*k*(Sp-Sd)+phi*rho_i/rho_star*Sp/gammaT_ref*Omega
+    # Polynya box equations
+    vect_out[0] = chi*(Tc[-1]-Tp) + phi*g*(liquidus(Sp,0)-Tp) + phi*k*(Td-Tp)
+    vect_out[2] = chi*(Sc[-1]-Sp) + phi*rho_i/rho_star*Sp/gammaT_ref*xi + phi*k*(Sd-Sp)
+
+    # Deep box equations
+    vect_out[1] = (1-r)*chi*(T_CDW-Td) + (phi*k+chi*r)*(Tp-Td)
+    vect_out[3] = (1-r)*chi*(S_CDW-Sd) + (phi*k+chi*r)*(Sp-Sd)
+
     
-    # deep box equations
-    vect_out[1] = chi*(T0-Td)+phi*k*(Tp-Td)
-    vect_out[3] = chi*(S0-Sd)+phi*k*(Sp-Sd)
+    if DSW_enabled: # allow DSW outflow
+        
+        q_DSW = compute_DSW(Td, Sd, C_DSW, T_CDW, S_CDW)
+        
+        vect_out[0] += q_DSW/Ac/gammaT_ref*(T_surf-Tp)
+        vect_out[2] += q_DSW/Ac/gammaT_ref*(S_surf-Sp)
+
+        vect_out[1] += -q_DSW/Ac/gammaT_ref*(Td-T_CDW)
+        vect_out[3] += -q_DSW/Ac/gammaT_ref*(Sd-S_CDW)
 
     return vect_out

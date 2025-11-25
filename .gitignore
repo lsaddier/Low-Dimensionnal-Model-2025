@@ -1,3 +1,5 @@
 Datasets/ice_prod_5km_Nakata.nc
 Datasets/nemo_5km_boxes_2D_oneFRIS.nc
 Datasets/nemo_5km_isf_masks_and_info_and_distance_new_oneFRIS.nc
+**/.ipynb_checkpoints
+**/__pycache__

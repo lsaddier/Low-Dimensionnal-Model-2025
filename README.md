@@ -20,7 +20,7 @@ jupyter-notebook
 
 ### Data Availability
 
-Please note that some datasets required to reproduce `Figures/Figure1` and `model_input_dataset.nc` are not included in the `Datasets` folder, due to file size limitations on GitHub. The complete dataset is available on Zenodo: https://doi.org/10.5281/zenodo.15855346.
+Please note that some datasets required to reproduce `Figures/Figure1` and `model_input_dataset.nc` are not included in the `Datasets` folder, due to file size limitations on GitHub. The complete dataset is available on Zenodo: https://doi.org/10.5281/zenodo.17780090
 
 ### Contact
 
